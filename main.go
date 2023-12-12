@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"io"
 	"os"
-	"path/filepath"
+	"os/exec"
+	"runtime"
 
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/russross/blackfriday/v2"
@@ -30,6 +32,7 @@ const (
 func main() {
 	// parse flags
 	var fileName = flag.String("file", "", "Markdown file you wish to preview.")
+	var skipPreview = flag.Bool("s", false, "Skip preview MD file in browser")
 	flag.Parse()
 
 	// no file, inform of usage
@@ -38,7 +41,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := run(*fileName); err != nil {
+	if err := run(*fileName, os.Stdout, *skipPreview); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
@@ -46,20 +49,36 @@ func main() {
 }
 
 // Reads, then parses
-func run(fileName string) error {
+func run(fileName string, out io.Writer, skipPreview bool) error {
 	input, err := os.ReadFile(fileName)
+	if err != nil {
+		return err
+	}
+	htmlData := parseContent(input)
 
+	// create temp file
+	temp, err := os.CreateTemp("", "mdp*.html") // temp == mdp<randomPattern>.html
 	if err != nil {
 		return err
 	}
 
-	htmlData := parseContent(input)
+	if err := temp.Close(); err != nil {
+		return err
+	}
 
 	// display created .html file
-	outName := fmt.Sprintf("%s.html", filepath.Base(fileName))
-	fmt.Println(outName)
+	outName := temp.Name()
+	fmt.Println(out, outName)
 
-	return saveHTML(outName, htmlData)
+	if err := saveHTML(outName, htmlData); err != nil {
+		return err
+	}
+
+	if skipPreview {
+		return nil
+	}
+	return preview(outName)
+	// return saveHTML(outName, htmlData)
 }
 
 func parseContent(input []byte) []byte {
@@ -77,4 +96,31 @@ func parseContent(input []byte) []byte {
 
 func saveHTML(outName string, htmlData []byte) error {
 	return os.WriteFile(outName, htmlData, 0644)
+}
+
+func preview(fname string) error {
+	var cName = ""
+	var cParams = []string{}
+
+	// define executable
+	switch runtime.GOOS {
+	case "linux":
+		cName = "xdg-open"
+	case "windows":
+		cName = "cmd.exe"
+		cParams = []string{"/C", "start"}
+	case "darwin":
+		cName = "open"
+	default:
+		return fmt.Errorf("OS not supported")
+	}
+	// append filename to params slice
+	cParams = append(cParams, fname)
+	// locate executable
+	cPath, err := exec.LookPath(cName)
+
+	if err != nil {
+		return err
+	}
+	return exec.Command(cPath, cParams...).Run()
 }

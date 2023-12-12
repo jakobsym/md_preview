@@ -3,12 +3,13 @@ package main
 import (
 	"bytes"
 	"os"
+	"strings"
 	"testing"
 )
 
 const (
-	INPUT_FILE    = "./testdata/test1.md"
-	RESULT_FILE   = "test1.md.html"
+	INPUT_FILE = "./testdata/test1.md"
+	//RESULT_FILE   = "test1.md.html"
 	EXPECTED_FILE = "./testdata/test1.md.html"
 )
 
@@ -33,11 +34,14 @@ func TestParseContent(t *testing.T) {
 }
 
 func TestRun(t *testing.T) {
-	if err := run(INPUT_FILE); err != nil {
+	var mockStdOut bytes.Buffer // buffer acting as stdout
+
+	if err := run(INPUT_FILE, &mockStdOut, true); err != nil {
 		t.Fatal(err)
 	}
+	resFile := strings.TrimSpace(mockStdOut.String())
 
-	result, err := os.ReadFile(RESULT_FILE)
+	result, err := os.ReadFile(resFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,5 +57,5 @@ func TestRun(t *testing.T) {
 		t.Error("Result content != expected contented")
 	}
 
-	os.Remove(RESULT_FILE)
+	os.Remove(resFile)
 }
