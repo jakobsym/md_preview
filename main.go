@@ -1,10 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/microcosm-cc/bluemonday"
+	"github.com/russross/blackfriday/v2"
 )
 
 // create Header and Footer as 'blackfriday' does not include
@@ -59,5 +63,18 @@ func run(fileName string) error {
 }
 
 func parseContent(input []byte) []byte {
+	output := blackfriday.Run(input)
+	body := bluemonday.UGCPolicy().SanitizeBytes(output)
 
+	var buffer bytes.Buffer
+
+	buffer.WriteString(header)
+	buffer.Write(body)
+	buffer.WriteString(footer)
+
+	return buffer.Bytes()
+}
+
+func saveHTML(outName string, htmlData []byte) error {
+	return os.WriteFile(outName, htmlData, 0644)
 }
